@@ -92,10 +92,7 @@ def check_followup(browser: webdriver.Chrome) -> bool:
     # Check that the text is as expected
     next_td = letter_buttons[0].find_element(By.XPATH, './ancestor::td/following-sibling::td[1]')
     span = next_td.find_element(By.XPATH, './/span')
-    if "Logiværtserklæring" in span.text:
-        return True
-    else:
-        return False
+    return "Logiværtserklæring" in span.text
 
 
 def check_queue(case: Case, orchestrator_connection: OrchestratorConnection) -> bool:
