@@ -48,13 +48,13 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
     orchestrator_connection.log_info(f"Beginning case: {case.case_number}")
 
     eflyt_search.open_case(browser, case.case_number)
-    letter_title = get_sent_letter_title(browser)
-    if "Logiværtserklæring" not in letter_title:
+
+    if verify_single_letter_for_host(browser):
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
 
-    if send_letter_to_anmelder(browser, letter_title):
+    if send_letter_to_anmelder(browser):
         eflyt_case.add_note(browser, "Orienteringsbrev om afsendt logiværtserklæring sendt til anmelder.")
     else:
         eflyt_case.add_note(browser, "Orienteringsbrev kunne ikke sendes til anmelder, da de ikke er tilmeldt digital post.")
@@ -64,25 +64,25 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
     orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sag færdigbehandlet.")
 
 
-def get_sent_letter_title(browser: webdriver.Chrome) -> str:
-    """Get the title of letter sent, empty if more than one is found.
+def verify_single_letter_for_host(browser: webdriver.Chrome) -> bool:
+    """Find elements of letters ready to be sent and check whether a single letter with title containing 'Logitværtserklæring' exists.
 
     Args:
         browser: Browser driver to use.
 
     Returns:
-        String with title of letter.
+        Does a single letter with title containing 'Logitværtserklæring' exists.
     """
     # Find the letter buttons and make sure there is only one
     followup_table = browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_moPersonTab_gvManuelOpfolgning")
     letter_buttons = followup_table.find_elements(By.XPATH, '//input[@src="../Images/eFlyt/iconDocument.gif"]')
     if len(letter_buttons) != 1:
-        return ""
+        return False
 
     # Check that the text is as expected
     next_td = letter_buttons[0].find_element(By.XPATH, './ancestor::td/following-sibling::td[1]')
     span = next_td.find_element(By.XPATH, './/span')
-    return span.text
+    return "Logiværtserklæring" in span.text
 
 
 def check_queue(case: Case, orchestrator_connection: OrchestratorConnection) -> bool:
@@ -113,7 +113,7 @@ def check_queue(case: Case, orchestrator_connection: OrchestratorConnection) -> 
     return True
 
 
-def send_letter_to_anmelder(browser: webdriver.Chrome, original_letter: str) -> bool:
+def send_letter_to_anmelder(browser: webdriver.Chrome) -> bool:
     """Open the 'Breve' tab and send a letter to the anmelder.
 
     Args:
@@ -129,8 +129,6 @@ def send_letter_to_anmelder(browser: webdriver.Chrome, original_letter: str) -> 
 
     # Select the anmelder as the receiver
     select_letter_receiver(browser, "(anmelder)")
-
-    select_letter_language(browser, original_letter)
 
     # Click 'Send brev'
     browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_bcPersonTab_btnSendBrev").click()
@@ -173,22 +171,6 @@ def click_letter_template(browser: webdriver.Chrome, letter_name: str):
             return
 
     raise ValueError(f"Template with the name '{letter_name}' was not found.")
-
-
-def select_letter_language(browser: webdriver.Chrome, original_letter: str) -> None:
-    """Select the letter language based on the language used in the original letter.
-
-    Args:
-        browser: The webdriver browser object.
-        original_letter: The title of the original letter sent.
-    """
-    language_select = Select(browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_bcPersonTab_ddlSprog"))
-    if "(DA)" in original_letter:
-        language_select.select_by_visible_text("Dansk")
-    elif "(TY)" in original_letter:
-        language_select.select_by_visible_text("Tysk")
-    elif "(EN)" in original_letter:
-        language_select.select_by_visible_text("Engelsk")
 
 
 def select_letter_receiver(browser: webdriver.Chrome, receiver_name: str) -> None:
