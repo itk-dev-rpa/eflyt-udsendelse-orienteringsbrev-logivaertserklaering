@@ -13,7 +13,7 @@ from itk_dev_shared_components.eflyt.eflyt_case import Case
 from robot_framework import config, letters
 
 
-def filter_cases(cases: list[Case], previous_case_numbers: list[str]) -> list[Case]:
+def filter_cases(cases: list[Case]) -> list[Case]:
     """Filter cases from the case table.
 
     Args:
@@ -22,20 +22,9 @@ def filter_cases(cases: list[Case], previous_case_numbers: list[str]) -> list[Ca
     Returns:
         A list of filtered case objects.
     """
-    case_types_to_skip = (
-        "Børneflytning 1",
-        "Børneflytning 2",
-        "Børneflytning 3",
-        "Barn",
-        "Mindreårig",
-        "Sommerhus",
-        "Nordisk land"
-    )
-
     filtered_cases = [
         case for case in cases
-        if "Logivært" in case.case_types and case.case_number not in previous_case_numbers
-        and not any(case_type in case_types_to_skip for case_type in case.case_types)
+        if "Logivært" in case.case_types
     ]
 
     return filtered_cases
@@ -59,40 +48,41 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
     orchestrator_connection.log_info(f"Beginning case: {case.case_number}")
 
     eflyt_search.open_case(browser, case.case_number)
-    if not check_followup(browser):
+    letter_title = get_sent_letter_title(browser)
+    if "Logiværtserklæring" not in letter_title:
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
 
-    if send_letter_to_anmelder(browser, letters.LETTER_TITLE):
-        eflyt_case.add_note(browser, "Brev sendt til anmelder.")
+    if send_letter_to_anmelder(browser, letter_title):
+        eflyt_case.add_note(browser, "Orienteringsbrev om afsendt logiværtserklæring sendt til anmelder.")
     else:
-        eflyt_case.add_note(browser, "Brev kunne ikke sendes til anmelder, da de ikke er tilmeldt digital post.")
+        eflyt_case.add_note(browser, "Orienteringsbrev kunne ikke sendes til anmelder, da de ikke er tilmeldt digital post.")
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Anmelder kan ikke modtage Digital Post.")
         return
 
     orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sag færdigbehandlet.")
 
 
-def check_followup(browser: webdriver.Chrome) -> bool:
-    """Check status page follow up list for only one element that is a Logiværtserklæring.
+def get_sent_letter_title(browser: webdriver.Chrome) -> str:
+    """Get the title of letter sent, empty if more than one is found.
 
     Args:
         browser: Browser driver to use.
 
     Returns:
-        True if we found just one element with the expected text.
+        String with title of letter.
     """
     # Find the letter buttons and make sure there is only one
     followup_table = browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_moPersonTab_gvManuelOpfolgning")
     letter_buttons = followup_table.find_elements(By.XPATH, '//input[@src="../Images/eFlyt/iconDocument.gif"]')
     if len(letter_buttons) != 1:
-        return False
+        return ""
 
     # Check that the text is as expected
     next_td = letter_buttons[0].find_element(By.XPATH, './ancestor::td/following-sibling::td[1]')
     span = next_td.find_element(By.XPATH, './/span')
-    return "Logiværtserklæring" in span.text
+    return span.text
 
 
 def check_queue(case: Case, orchestrator_connection: OrchestratorConnection) -> bool:
