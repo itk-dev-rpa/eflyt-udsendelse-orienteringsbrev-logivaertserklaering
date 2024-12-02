@@ -49,7 +49,7 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
 
     eflyt_search.open_case(browser, case.case_number)
 
-    if verify_single_letter_for_host(browser):
+    if not verify_single_letter_for_host(browser):
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
