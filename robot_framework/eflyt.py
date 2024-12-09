@@ -54,7 +54,6 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
-    return
     if send_letter_to_anmelder(browser):
         eflyt_case.add_note(browser, "Orienteringsbrev om afsendt logiværtserklæring sendt til anmelder.")
     else:
