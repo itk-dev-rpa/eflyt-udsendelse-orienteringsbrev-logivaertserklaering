@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
 from OpenOrchestrator.database.queues import QueueStatus
 from itk_dev_shared_components.eflyt import eflyt_case, eflyt_search
@@ -54,6 +54,7 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
+    return
     if send_letter_to_anmelder(browser):
         eflyt_case.add_note(browser, "Orienteringsbrev om afsendt logiværtserklæring sendt til anmelder.")
     else:
@@ -80,8 +81,11 @@ def verify_single_letter_for_host(browser: webdriver.Chrome) -> bool:
         return False
 
     # Check no reply has been received with the appearance of the "Vis svar"-button
-    if browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_moPersonTab_gvManuelOpfolgning_ctl05_lbtnVisSvar"):
+    try:
+        browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_moPersonTab_gvManuelOpfolgning_ctl05_lbtnVisSvar")
         return False
+    except NoSuchElementException:
+        pass
 
     # Check that the existing text is as expected
     next_td = letter_buttons[0].find_element(By.XPATH, './ancestor::td/following-sibling::td[1]')
