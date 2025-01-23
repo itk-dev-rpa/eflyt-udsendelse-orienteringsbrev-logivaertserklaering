@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
 from OpenOrchestrator.database.queues import QueueStatus
 from itk_dev_shared_components.eflyt import eflyt_case, eflyt_search
@@ -22,9 +22,10 @@ def filter_cases(cases: list[Case]) -> list[Case]:
     Returns:
         A list of filtered case objects.
     """
+    ignored_case_types = ["Børneflytning 1", "Børneflytning 2", "Børneflytning 3", "Mindreårig", "Barn"]
     filtered_cases = [
         case for case in cases
-        if "Logivært" in case.case_types
+        if "Logivært" in case.case_types and not any(case_type in case.case_types for case_type in ignored_case_types)
     ]
 
     return filtered_cases
@@ -49,11 +50,10 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
 
     eflyt_search.open_case(browser, case.case_number)
 
-    if verify_single_letter_for_host(browser):
+    if not verify_single_letter_for_host(browser):
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sprunget over fordi breve ikke består af en enkelt logiværtserklæring.")
         orchestrator_connection.log_info("Skipping: Number of letters on case.")
         return
-
     if send_letter_to_anmelder(browser):
         eflyt_case.add_note(browser, "Orienteringsbrev om afsendt logiværtserklæring sendt til anmelder.")
     else:
@@ -79,7 +79,14 @@ def verify_single_letter_for_host(browser: webdriver.Chrome) -> bool:
     if len(letter_buttons) != 1:
         return False
 
-    # Check that the text is as expected
+    # Check no reply has been received with the appearance of the "Vis svar"-button
+    try:
+        browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_moPersonTab_gvManuelOpfolgning_ctl05_lbtnVisSvar")
+        return False
+    except NoSuchElementException:
+        pass
+
+    # Check that the existing text is as expected
     next_td = letter_buttons[0].find_element(By.XPATH, './ancestor::td/following-sibling::td[1]')
     span = next_td.find_element(By.XPATH, './/span')
     return "Logiværtserklæring" in span.text
