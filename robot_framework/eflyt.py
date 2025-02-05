@@ -135,7 +135,7 @@ def send_letter_to_anmelder(browser: webdriver.Chrome) -> bool:
     click_letter_template(browser, "- Individuelt brev")
 
     # Select the anmelder as the receiver
-    select_letter_receiver(browser, "(anmelder)")
+    select_letter_receiver(browser, "anmelder")
 
     # Click 'Send brev'
     browser.find_element(By.ID, "ctl00_ContentPlaceHolder2_ptFanePerson_bcPersonTab_btnSendBrev").click()
