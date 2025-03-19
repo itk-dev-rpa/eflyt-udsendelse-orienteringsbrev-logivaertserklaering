@@ -1,16 +1,84 @@
 """This module contains all logic related to the Eflyt system."""
 
+import time
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
 from OpenOrchestrator.database.queues import QueueStatus
 from itk_dev_shared_components.eflyt import eflyt_case, eflyt_search
 from itk_dev_shared_components.eflyt.eflyt_case import Case
 from robot_framework import config, letters
+
+
+class ResilientWebElement(WebElement):
+    """A WebElement subclass that automatically retries on stale element errors by re-locating itself."""
+
+    def __init__(self, parent, id_, by, locator, max_retries=3, retry_delay=1):
+        super().__init__(parent, id_)
+        self.by = by
+        self.locater = locator
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+
+    def _execute(self, command, params=None):
+        """Overrides _execute to retry and re-locate the element if it becomes stale."""
+        retries = 0
+        while retries < self.max_retries:
+            try:
+                return super()._execute(command, params)
+            except StaleElementReferenceException:
+                print(f"Retry {retries + 1}: Element went stale. Re-locating and retrying...")
+                retries += 1
+                time.sleep(self.retry_delay)
+                self._relocate()
+        raise Exception(f"Failed to execute command {command} after {self.max_retries} retries")
+
+    def _relocate(self):
+        """Re-locates the element using its original locator."""
+        new_element = self._parent.find_element(self.by, self.locater, relocate=True)
+        self._id = new_element._id
+
+
+class ResilientBrowser(webdriver.Chrome):
+    """A webdriver.Chrome subclass that produces ResilientWebElements when using find_element."""
+    def find_element(self, by=By.ID, value = None, relocate: bool = False):
+        element = super().find_element(by, value)
+        if relocate:
+            return element
+
+        return ResilientWebElement(self, element._id, by, value)
+
+
+def login(username: str, password: str) -> ResilientBrowser:
+    """Log into Eflyt using a password and username.
+
+    Args:
+        username: Username for login.
+        password: Password for login.
+    """
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--disable-search-engine-choice-screen")
+    browser = ResilientBrowser(options=chrome_options)
+    browser.maximize_window()
+    browser.implicitly_wait(2)
+
+    browser.get("https://notuskommunal.scandihealth.net/")
+    browser.find_element(By.ID, "Login1_UserName").send_keys(username)
+    browser.find_element(By.ID, "Login1_Password").send_keys(password)
+    browser.find_element(By.ID, "Login1_LoginImageButton").click()
+
+    try:
+        browser.find_element(By.ID, "ctl00_imgLogo")
+    except NoSuchElementException as exc:
+        raise RuntimeError("Login failed") from exc
+
+    return browser
 
 
 def filter_cases(cases: list[Case]) -> list[Case]:
