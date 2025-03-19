@@ -19,7 +19,7 @@ from robot_framework import config, letters
 class ResilientWebElement(WebElement):
     """A WebElement subclass that automatically retries on stale element errors by re-locating itself."""
 
-    def __init__(self, parent, id_, by, locator, max_retries=3, retry_delay=1):
+    def __init__(self, parent, id_, by, locator, *, max_retries=3, retry_delay=1):
         super().__init__(parent, id_)
         self.by = by
         self.locater = locator
@@ -37,12 +37,12 @@ class ResilientWebElement(WebElement):
                 retries += 1
                 time.sleep(self.retry_delay)
                 self._relocate()
-        raise Exception(f"Failed to execute command {command} after {self.max_retries} retries")
+        raise RuntimeError(f"Failed to execute command {command} after {self.max_retries} retries")
 
     def _relocate(self):
         """Re-locates the element using its original locator."""
         new_element = self._parent.find_element(self.by, self.locater, relocate=True)
-        self._id = new_element._id
+        self._id = new_element._id  # pylint: disable=protected-access
 
 
 class ResilientBrowser(webdriver.Chrome):
@@ -52,7 +52,7 @@ class ResilientBrowser(webdriver.Chrome):
         if relocate:
             return element
 
-        return ResilientWebElement(self, element._id, by, value)
+        return ResilientWebElement(self, element._id, by, value)  # pylint: disable=protected-access
 
 
 def login(username: str, password: str) -> ResilientBrowser:
