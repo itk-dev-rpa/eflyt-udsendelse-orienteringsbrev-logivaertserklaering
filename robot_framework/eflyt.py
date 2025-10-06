@@ -1,57 +1,18 @@
 """This module contains all logic related to the Eflyt system."""
 
-import time
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
 from OpenOrchestrator.database.queues import QueueStatus
 from itk_dev_shared_components.eflyt import eflyt_case, eflyt_search
 from itk_dev_shared_components.eflyt.eflyt_case import Case
+import itk_dev_event_log
+
 from robot_framework import config, letters
-
-
-class ResilientBrowser(webdriver.Chrome):
-    """A webdriver.Chrome subclass that retries find_element if the element goes stale."""
-    def find_element(self, by=By.ID, value = None) -> WebElement:
-        element = super().find_element(by, value)
-        time.sleep(0.1)
-        try:
-            element.tag_name
-        except StaleElementReferenceException:
-            element = super().find_element(by, value)
-        return element
-
-
-def login(username: str, password: str) -> ResilientBrowser:
-    """Log into Eflyt using a password and username.
-
-    Args:
-        username: Username for login.
-        password: Password for login.
-    """
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--disable-search-engine-choice-screen")
-    browser = ResilientBrowser(options=chrome_options)
-    browser.maximize_window()
-    browser.implicitly_wait(2)
-
-    browser.get("https://notuskommunal.scandihealth.net/")
-    browser.find_element(By.ID, "Login1_UserName").send_keys(username)
-    browser.find_element(By.ID, "Login1_Password").send_keys(password)
-    browser.find_element(By.ID, "Login1_LoginImageButton").click()
-
-    try:
-        browser.find_element(By.ID, "ctl00_imgLogo")
-    except NoSuchElementException as exc:
-        raise RuntimeError("Login failed") from exc
-
-    return browser
 
 
 def filter_cases(cases: list[Case]) -> list[Case]:
@@ -102,6 +63,7 @@ def handle_case(browser: webdriver.Chrome, case: Case, orchestrator_connection: 
         orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Anmelder kan ikke modtage Digital Post.")
         return
 
+    itk_dev_event_log.emit(orchestrator_connection.process_name, "Case handled.")
     orchestrator_connection.set_queue_element_status(queue_element.id, QueueStatus.DONE, message="Sag færdigbehandlet.")
 
 

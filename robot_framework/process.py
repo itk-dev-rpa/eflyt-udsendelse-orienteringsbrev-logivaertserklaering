@@ -4,7 +4,8 @@ import os
 from datetime import date
 
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
-from itk_dev_shared_components.eflyt import eflyt_search
+from itk_dev_shared_components.eflyt import eflyt_search, eflyt_login
+import itk_dev_event_log
 
 from robot_framework import eflyt
 
@@ -12,10 +13,12 @@ from robot_framework import eflyt
 def process(orchestrator_connection: OrchestratorConnection) -> None:
     """Do the primary process of the robot."""
     orchestrator_connection.log_trace("Running process.")
+    event_log = orchestrator_connection.get_constant("Event Log")
+    itk_dev_event_log.setup_logging(event_log.value)
 
     orchestrator_connection.log_trace("Logging in to eflyt")
     credentials = orchestrator_connection.get_credential("Eflyt")
-    browser = eflyt.login(credentials.username, credentials.password)
+    browser = eflyt_login.login(credentials.username, credentials.password)
 
     orchestrator_connection.log_trace("Searching cases")
     eflyt_search.search(browser, case_state="I gang", to_date=date.today())
