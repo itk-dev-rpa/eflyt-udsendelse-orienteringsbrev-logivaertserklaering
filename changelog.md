@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added eventlogging.
+  
 ### Changed
 
+- Bumped OpenOrchestrator to 2.*
 - Changed eflyt login to shared components.
+
 ## [1.0.5]
 
 ### Fixed
